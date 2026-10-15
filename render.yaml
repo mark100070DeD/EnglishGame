@@ -17,8 +17,9 @@ services:
         value: 0.0.0.0
       - key: LOG_LEVEL
         value: info
+      # auto = Claude when ANTHROPIC_API_KEY is set (add it in the Render dashboard), echo stub otherwise.
       - key: DIALOGUE_PROVIDER
-        value: echo
+        value: auto
       # Frontend address(es) allowed to call this API (comma-separated, * = wildcard).
       # Adjust if your Vercel URL differs.
       - key: CORS_ORIGINS

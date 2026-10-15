@@ -1,4 +1,4 @@
-import type { ChatMessageDto, ChatRole, OfficeKind } from '@english-office/shared';
+import type { ChatRole, OfficeKind, SessionReport } from '@english-office/shared';
 import type { DialogueGateway } from '../../api/dialogueApi';
 
 /** "system" messages (errors, notices) are shown in the chat but never sent to the backend. */
@@ -10,35 +10,43 @@ export interface ChatMessage {
   readonly text: string;
 }
 
+/**
+ * idle → starting → active → finishing → finished.
+ * A failed start returns to idle; a failed finish returns to active.
+ */
+export type DialoguePhase = 'idle' | 'starting' | 'active' | 'finishing' | 'finished';
+
 export interface DialogueSessionState {
+  readonly phase: DialoguePhase;
+  readonly topic: string | null;
   readonly messages: readonly ChatMessage[];
+  /** Waiting for the NPC's reply to a message. */
   readonly pending: boolean;
+  readonly report: SessionReport | null;
 }
 
 export interface DialogueSessionOptions {
   officeKind: OfficeKind;
   npcId: string;
-  greeting?: string;
+  npcName: string;
 }
 
 type Listener = (state: DialogueSessionState) => void;
 
 /**
- * One conversation with one NPC: message history, request state and backend calls.
- * UI-agnostic — views subscribe to state changes and call send().
+ * One conversation with one NPC as seen by the client. The server owns the transcript,
+ * topic and rules; this class tracks UI state and talks to the gateway.
  */
 export class DialogueSession {
-  private state: DialogueSessionState = { messages: [], pending: false };
+  private state: DialogueSessionState = { phase: 'idle', topic: null, messages: [], pending: false, report: null };
   private readonly listeners = new Set<Listener>();
-  private readonly conversationId = crypto.randomUUID();
+  private sessionId: string | null = null;
   private nextMessageId = 1;
 
   constructor(
     private readonly options: DialogueSessionOptions,
     private readonly gateway: DialogueGateway,
-  ) {
-    if (options.greeting) this.append('npc', options.greeting);
-  }
+  ) {}
 
   getState(): DialogueSessionState {
     return this.state;
@@ -51,34 +59,48 @@ export class DialogueSession {
     return () => this.listeners.delete(listener);
   }
 
+  /** Starts the server session (picks the topic, gets the NPC's opening). No-op unless idle. */
+  async start(): Promise<void> {
+    if (this.state.phase !== 'idle') return;
+    this.update({ phase: 'starting' });
+    try {
+      const { sessionId, topic, opening } = await this.gateway.startSession(this.options);
+      this.sessionId = sessionId;
+      this.update({ phase: 'active', topic });
+      this.append(opening.role, opening.text);
+    } catch (error) {
+      this.update({ phase: 'idle' });
+      this.append('system', errorText(error));
+    }
+  }
+
   async send(rawText: string): Promise<void> {
     const text = rawText.trim();
-    if (!text || this.state.pending) return;
+    if (!text || this.state.pending || this.state.phase !== 'active' || !this.sessionId) return;
 
-    const history = this.toHistory();
     this.append('user', text);
     this.update({ pending: true });
-
     try {
-      const response = await this.gateway.sendMessage({
-        conversationId: this.conversationId,
-        officeKind: this.options.officeKind,
-        npcId: this.options.npcId,
-        message: text,
-        history,
-      });
-      this.append(response.reply.role, response.reply.text);
+      const { reply } = await this.gateway.sendMessage(this.sessionId, { message: text });
+      this.append(reply.role, reply.text);
     } catch (error) {
-      this.append('system', error instanceof Error ? error.message : 'Something went wrong');
+      this.append('system', errorText(error));
     } finally {
       this.update({ pending: false });
     }
   }
 
-  private toHistory(): ChatMessageDto[] {
-    return this.state.messages
-      .filter((m): m is ChatMessage & { role: ChatRole } => m.role !== 'system')
-      .map(({ role, text }) => ({ role, text }));
+  /** Ends the session and fetches the report. */
+  async finish(): Promise<void> {
+    if (this.state.phase !== 'active' || this.state.pending || !this.sessionId) return;
+    this.update({ phase: 'finishing' });
+    try {
+      const { report } = await this.gateway.finishSession(this.sessionId);
+      this.update({ phase: 'finished', report });
+    } catch (error) {
+      this.update({ phase: 'active' });
+      this.append('system', errorText(error));
+    }
   }
 
   private append(role: ChatMessageRole, text: string): void {
@@ -89,4 +111,8 @@ export class DialogueSession {
     this.state = { ...this.state, ...patch };
     for (const listener of this.listeners) listener(this.state);
   }
+}
+
+function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : 'Something went wrong';
 }

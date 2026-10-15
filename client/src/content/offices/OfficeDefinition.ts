@@ -7,8 +7,6 @@ export type OfficeId = 'speaking-office';
 export interface NpcDefinition extends TilePoint {
   id: string;
   name: string;
-  /** First NPC line shown when the conversation starts. */
-  greeting: string;
 }
 
 export interface OfficeDefinition {

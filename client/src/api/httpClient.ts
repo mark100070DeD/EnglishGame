@@ -14,17 +14,20 @@ export class ApiError extends Error {
   }
 }
 
-export async function postJson<TResponse>(path: string, body: unknown, signal?: AbortSignal): Promise<TResponse> {
+export function postJson<TResponse>(path: string, body: unknown = {}): Promise<TResponse> {
+  return requestJson<TResponse>('POST', path, body);
+}
+
+export async function requestJson<TResponse>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<TResponse> {
   let response: Response;
   try {
     response = await fetch(`${BASE_URL}${path}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      signal,
+      method,
+      headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+      body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch {
-    throw new ApiError('Server is unreachable. Is the backend running?', 0, 'NETWORK_ERROR');
+    throw new ApiError('Server is unreachable. Please check your connection and try again.', 0, 'NETWORK_ERROR');
   }
 
   const payload: unknown = await response.json().catch(() => null);

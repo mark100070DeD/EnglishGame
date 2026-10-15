@@ -10,7 +10,6 @@ export const speakingOffice: OfficeDefinition = {
     name: 'Emma',
     x: 7,
     y: 4,
-    greeting: "Hi, I'm Emma! Let's practise speaking. How has your day been so far?",
   },
   // 16×10 tiles = 256×160 px
   room: {

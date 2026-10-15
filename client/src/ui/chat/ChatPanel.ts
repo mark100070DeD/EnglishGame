@@ -1,6 +1,7 @@
 import { DIALOGUE_LIMITS } from '@english-office/shared';
 import type { DialogueSession, DialogueSessionState } from '../../systems/dialogue/DialogueSession';
 import { createElement } from '../dom';
+import { ReportView } from '../report/ReportView';
 
 export interface ChatPanelOptions {
   title: string;
@@ -11,14 +12,19 @@ export interface ChatPanelOptions {
 }
 
 /**
- * Chat window bound to a DialogueSession. Contains no game or office-specific logic,
- * so every office type can reuse it.
+ * Chat window bound to a DialogueSession: message log, input, "finish session" and,
+ * once finished, the report. Contains no office-specific logic, so every office can reuse it.
  */
 export class ChatPanel {
   private readonly root = createElement('section', 'chat-panel');
+  private readonly subtitle = createElement('p', 'chat-panel__subtitle');
+  private readonly finishButton = createElement('button', 'chat-panel__finish', 'Завершить сессию');
   private readonly log = createElement('ol', 'chat-panel__log');
+  private readonly form = createElement('form', 'chat-panel__form');
   private readonly input = createElement('input', 'chat-panel__input');
   private readonly sendButton = createElement('button', 'chat-panel__send', 'Send');
+  private readonly hint = createElement('p', 'chat-panel__hint', 'Enter — send · Esc — close');
+  private reportView: ReportView | null = null;
   private unsubscribe: (() => void) | null = null;
 
   constructor(
@@ -50,21 +56,28 @@ export class ChatPanel {
   }
 
   private build(): void {
-    const { title, subtitle } = this.options;
+    const { title } = this.options;
     this.root.setAttribute('role', 'dialog');
     this.root.setAttribute('aria-label', `Chat with ${title}`);
 
     const heading = createElement('div', 'chat-panel__heading');
-    heading.append(createElement('h2', 'chat-panel__title', title));
-    if (subtitle) heading.append(createElement('p', 'chat-panel__subtitle', subtitle));
+    heading.append(createElement('h2', 'chat-panel__title', title), this.subtitle);
+
+    this.finishButton.type = 'button';
+    this.finishButton.addEventListener('click', () => {
+      if (window.confirm('Завершить сессию и получить отчёт?')) void this.options.session.finish();
+    });
 
     const closeButton = createElement('button', 'chat-panel__close', '×');
     closeButton.type = 'button';
     closeButton.setAttribute('aria-label', 'Close chat');
     closeButton.addEventListener('click', () => this.close());
 
+    const actions = createElement('div', 'chat-panel__actions');
+    actions.append(this.finishButton, closeButton);
+
     const header = createElement('header', 'chat-panel__header');
-    header.append(heading, closeButton);
+    header.append(heading, actions);
 
     this.log.setAttribute('aria-live', 'polite');
 
@@ -75,16 +88,13 @@ export class ChatPanel {
     this.input.spellcheck = false;
     this.sendButton.type = 'submit';
 
-    const form = createElement('form', 'chat-panel__form');
-    form.append(this.input, this.sendButton);
-    form.addEventListener('submit', (event) => {
+    this.form.append(this.input, this.sendButton);
+    this.form.addEventListener('submit', (event) => {
       event.preventDefault();
       void this.submit();
     });
 
-    const hint = createElement('p', 'chat-panel__hint', 'Enter — send · Esc — close');
-
-    this.root.append(header, this.log, form, hint);
+    this.root.append(header, this.log, this.form, this.hint);
     this.root.addEventListener('keydown', (event) => {
       // Keep keystrokes inside the chat away from any game-level listeners.
       event.stopPropagation();
@@ -94,20 +104,47 @@ export class ChatPanel {
 
   private async submit(): Promise<void> {
     const text = this.input.value;
-    if (!text.trim() || this.options.session.getState().pending) return;
+    const state = this.options.session.getState();
+    if (!text.trim() || state.pending || state.phase !== 'active') return;
     this.input.value = '';
     await this.options.session.send(text);
     this.input.focus();
   }
 
   private render(state: DialogueSessionState): void {
+    const base = this.options.subtitle ?? '';
+    this.subtitle.textContent = state.topic ? `${base}${base ? ' · ' : ''}Topic: ${state.topic}` : base;
+
+    if (state.phase === 'finished' && state.report) {
+      this.showReport(state);
+      return;
+    }
+
     const items = state.messages.map((message) =>
       createElement('li', `chat-message chat-message--${message.role}`, message.text),
     );
-    if (state.pending) items.push(createElement('li', 'chat-message chat-message--typing', '…'));
+    const waitingText =
+      state.phase === 'starting' ? '…' : state.phase === 'finishing' ? 'Готовлю отчёт…' : state.pending ? '…' : null;
+    if (waitingText) items.push(createElement('li', 'chat-message chat-message--typing', waitingText));
 
     this.log.replaceChildren(...items);
     this.log.scrollTop = this.log.scrollHeight;
-    this.sendButton.disabled = state.pending;
+
+    const canTalk = state.phase === 'active';
+    this.sendButton.disabled = !canTalk || state.pending;
+    this.input.disabled = !canTalk;
+    this.finishButton.disabled = !canTalk || state.pending;
+    // At least one player message is needed for a meaningful report.
+    this.finishButton.hidden = !state.messages.some((m) => m.role === 'user');
+  }
+
+  private showReport(state: DialogueSessionState): void {
+    if (this.reportView || !state.report) return;
+    this.reportView = new ReportView(state.report);
+    this.root.classList.add('chat-panel--report');
+    this.finishButton.hidden = true;
+    this.log.replaceWith(this.reportView.element);
+    this.form.remove();
+    this.hint.textContent = 'Esc — close';
   }
 }

@@ -35,9 +35,9 @@ export class DialogueOfficeScene extends RoomScene<DialogueOfficeSceneData> {
     const feet = tileFeet(npcDef);
     const npc = new Npc(this, feet.x ?? 0, feet.y ?? 0, { id: npcDef.id, name: npcDef.name });
 
-    // Lives as long as the player stays in the office; reopening the chat keeps the history.
+    // Lives as long as the player stays in the office; reopening the chat continues the same session.
     const session = new DialogueSession(
-      { officeKind: kind, npcId: npcDef.id, greeting: npcDef.greeting },
+      { officeKind: kind, npcId: npcDef.id, npcName: npcDef.name },
       httpDialogueGateway,
     );
 
@@ -45,12 +45,15 @@ export class DialogueOfficeScene extends RoomScene<DialogueOfficeSceneData> {
       id: `npc:${npcDef.id}`,
       target: npc,
       label: npcDef.name,
-      onActivate: () => this.openChat(new ChatPanel(getUiRoot(), {
-        title: npcDef.name,
-        subtitle: title,
-        session,
-        onClose: () => this.closeChat(),
-      })),
+      onActivate: () => {
+        this.openChat(new ChatPanel(getUiRoot(), {
+          title: npcDef.name,
+          subtitle: title,
+          session,
+          onClose: () => this.closeChat(),
+        }));
+        void session.start();
+      },
     });
   }
 
