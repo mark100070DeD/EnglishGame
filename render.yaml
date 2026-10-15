@@ -17,7 +17,8 @@ services:
         value: 0.0.0.0
       - key: LOG_LEVEL
         value: info
-      # auto = Claude when ANTHROPIC_API_KEY is set (add it in the Render dashboard), echo stub otherwise.
+      # auto = the LLM whose key is set in the Render dashboard (GEMINI_API_KEY for the free tier,
+      # or ANTHROPIC_API_KEY / GROQ_API_KEY); echo stub when no key is set.
       - key: DIALOGUE_PROVIDER
         value: auto
       # Frontend address(es) allowed to call this API (comma-separated, * = wildcard).

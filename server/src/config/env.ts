@@ -1,17 +1,26 @@
 import 'dotenv/config';
 import { z } from 'zod';
 
+const optionalSecret = z
+  .string()
+  .optional()
+  .transform((value) => value?.trim() || undefined);
+
 const EnvSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3001),
   HOST: z.string().default('127.0.0.1'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
-  /** "auto": Claude if ANTHROPIC_API_KEY is set, otherwise the echo stub. */
-  DIALOGUE_PROVIDER: z.enum(['auto', 'echo', 'anthropic']).default('auto'),
-  ANTHROPIC_API_KEY: z
-    .string()
-    .optional()
-    .transform((value) => value?.trim() || undefined),
-  LLM_MODEL: z.string().min(1).default('claude-opus-5-5'),
+  /**
+   * "auto" picks the first configured key: ANTHROPIC_API_KEY → GEMINI_API_KEY → GROQ_API_KEY,
+   * and falls back to the echo stub when none is set.
+   */
+  DIALOGUE_PROVIDER: z.enum(['auto', 'echo', 'anthropic', 'gemini', 'groq']).default('auto'),
+  ANTHROPIC_API_KEY: optionalSecret,
+  /** Free tier available: https://aistudio.google.com/apikey */
+  GEMINI_API_KEY: optionalSecret,
+  GROQ_API_KEY: optionalSecret,
+  /** Overrides the provider's default model. */
+  LLM_MODEL: optionalSecret,
   /** Where finished reports are stored as JSON files. Relative paths resolve from the working directory. */
   REPORTS_DIR: z.string().min(1).default('data/reports'),
   /** Sessions without activity for this long are dropped from memory. */

@@ -3,6 +3,7 @@ import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
 import type { ReportContent } from '@english-office/shared';
 import type { OfficeMode } from '../../offices/OfficeMode';
 import { ReportContentSchema } from '../../reports/reportContentSchema';
+import { buildChatTurns } from './chatTurns';
 import { DialogueRefusalError, type ConversationContext, type DialogueProvider } from './DialogueProvider';
 
 /** Server-side fallback: if the model declines, the API retries on Anthropic's recommended model. */
@@ -56,7 +57,7 @@ export class AnthropicDialogueProvider implements DialogueProvider {
       // Chat turns are short; low effort keeps replies fast.
       output_config: { effort: 'low' },
       system: mode.conversationSystemPrompt(ctx),
-      messages: toMessages(ctx, mode),
+      messages: buildChatTurns(ctx, mode),
     });
 
     if (response.stop_reason === 'refusal') throw new DialogueRefusalError();
@@ -67,20 +68,4 @@ export class AnthropicDialogueProvider implements DialogueProvider {
     if (!text) throw new Error(`Empty reply from the model (stop_reason: ${response.stop_reason})`);
     return text;
   }
-}
-
-/**
- * The conversation always starts with the synthetic "learner entered" instruction,
- * so the history begins with a user turn and keeps a stable prefix.
- */
-function toMessages(ctx: ConversationContext, mode: OfficeMode): Anthropic.Beta.BetaMessageParam[] {
-  return [
-    { role: 'user', content: mode.openingInstruction(ctx) },
-    ...ctx.transcript.map(
-      (entry): Anthropic.Beta.BetaMessageParam => ({
-        role: entry.role === 'user' ? 'user' : 'assistant',
-        content: entry.text,
-      }),
-    ),
-  ];
 }

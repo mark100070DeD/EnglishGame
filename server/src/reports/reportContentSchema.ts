@@ -16,6 +16,12 @@ export const ReportContentSchema = z.object({
   recommendations: z.array(z.string()),
 });
 
+/** The same schema as JSON Schema, for OpenAI-compatible structured outputs. */
+export const REPORT_JSON_SCHEMA: Record<string, unknown> = (() => {
+  const { $schema: _ignored, ...schema } = z.toJSONSchema(ReportContentSchema) as Record<string, unknown>;
+  return schema;
+})();
+
 // Compile-time guard: the schema output must stay assignable to the shared type.
 const _schemaMatchesContract: (value: z.infer<typeof ReportContentSchema>) => ReportContent = (value) => value;
 void _schemaMatchesContract;
