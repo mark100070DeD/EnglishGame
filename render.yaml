@@ -19,6 +19,7 @@ services:
         value: info
       - key: DIALOGUE_PROVIDER
         value: echo
-      # Frontend address(es) allowed to call this API. Adjust if your Vercel URL differs.
+      # Frontend address(es) allowed to call this API (comma-separated, * = wildcard).
+      # Adjust if your Vercel URL differs.
       - key: CORS_ORIGINS
-        value: https://english-office*.vercel.app
+        value: https://englishgame*.vercel.app,https://english-office*.vercel.app
