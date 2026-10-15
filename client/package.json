@@ -1,0 +1,19 @@
+{
+  "name": "@english-office/client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@english-office/shared": "*",
+    "phaser": "^3.88.2"
+  },
+  "devDependencies": {
+    "vite": "^6.0.0"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "name": "@english-office/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "node build.mjs",
+    "start": "node --enable-source-maps dist/index.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@english-office/shared": "*",
+    "@fastify/cors": "^10.1.0",
+    "@fastify/static": "^8.3.0",
+    "dotenv": "^16.4.5",
+    "fastify": "^5.1.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.0",
+    "esbuild": "^0.24.2",
+    "tsx": "^4.19.2"
+  }
+}

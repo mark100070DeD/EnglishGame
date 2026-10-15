@@ -1,0 +1,24 @@
+# Render Blueprint: the API backend as a free Web Service.
+# The game itself is deployed separately as static files (see vercel.json).
+# Docs: https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: english-office-api
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run build -w server
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: HOST
+        value: 0.0.0.0
+      - key: LOG_LEVEL
+        value: info
+      - key: DIALOGUE_PROVIDER
+        value: echo
+      # Frontend address(es) allowed to call this API. Adjust if your Vercel URL differs.
+      - key: CORS_ORIGINS
+        value: https://english-office*.vercel.app
